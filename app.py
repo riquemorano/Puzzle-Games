@@ -4,7 +4,6 @@ from games import number_password, sudoku, sliding_puzzle
 # ==========================================
 # CONFIGURAÇÃO DE ESTADO E PÁGINA
 # ==========================================
-
 # Lemos o estado antes do set_page_config para podermos alterar o layout dinamicamente.
 # O set_page_config obrigatoriamente precisa ser o primeiro comando do Streamlit a ser chamado.
 if "jogo_atual" not in st.session_state:
@@ -12,22 +11,42 @@ if "jogo_atual" not in st.session_state:
 
 # O menu principal fica melhor centralizado, mas os jogos precisam de mais espaço em tela (wide)
 layout_pagina = "centered" if st.session_state.jogo_atual is None else "wide"
-
 st.set_page_config(page_title="Central de Jogos", page_icon="🎮", layout=layout_pagina)
 
+# Injeta CSS responsivo para aproveitar melhor as margens e fontes em telas pequenas (mobile)
+st.markdown(
+    """
+    <style>
+        @media (max-width: 768px) {
+            .block-container {
+                padding-top: 2.5rem !important;
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+                padding-bottom: 1.5rem !important;
+            }
+            h1 {
+                font-size: 1.6rem !important;
+            }
+            h2, h3 {
+                font-size: 1.25rem !important;
+            }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ==========================================
 # REGISTRO DE JOGOS DISPONÍVEIS
 # ==========================================
-
 # Ponto central de roteamento da aplicação.
 # Para adicionar um novo jogo, basta importar o módulo acima e registrá-lo neste dicionário.
 JOGOS = {
-    "🔐 Desafio do Cadeado (Number Password)": {
+    "🔒 Desafio do Cadeado (Number Password)": {
         "modulo": number_password,
         "descricao": "Descubra a combinação secreta do cadeado usando lógica, pistas e matriz de dedução.",
     },
-    "🧩 Sudoku": {
+    "🔢 Sudoku": {
         "modulo": sudoku,
         "descricao": "Preencha a grade 9x9 com números de 1 a 9, garantindo que cada linha, coluna e região 3x3 contenha todos os dígitos sem repetições.",
     },
@@ -46,7 +65,6 @@ def voltar_ao_menu():
 # ==========================================
 # RENDERIZAÇÃO: MENU INICIAL VS JOGO ATIVO
 # ==========================================
-
 if st.session_state.jogo_atual is None:
     # --- TELA DE MENU ---
     st.title("🎮 Central de Jogos")
@@ -57,11 +75,9 @@ if st.session_state.jogo_atual is None:
     for nome_jogo, info in JOGOS.items():
         with st.container(border=True):
             col_info, col_btn = st.columns([3, 1], vertical_alignment="center")
-
             with col_info:
                 st.subheader(nome_jogo)
                 st.caption(info["descricao"])
-
             with col_btn:
                 # O rerun atualiza a tela imediatamente, aplicando o novo layout "wide" configurado acima
                 if st.button(
@@ -72,17 +88,25 @@ if st.session_state.jogo_atual is None:
                 ):
                     st.session_state.jogo_atual = nome_jogo
                     st.rerun()
-
 else:
     # --- TELA DO JOGO ---
-
     # Injeta um botão de navegação global na barra lateral para permitir a saída do jogo
     st.sidebar.button(
         "⬅️ Voltar ao Menu Principal", on_click=voltar_ao_menu, use_container_width=True
     )
 
+    # Barra de navegação no topo da página para facilitar a saída no celular (onde a sidebar fica oculta)
+    col_nav, col_dica_menu = st.columns([1, 3], vertical_alignment="center")
+    with col_nav:
+        st.button(
+            "⬅️ Menu Principal", on_click=voltar_ao_menu, use_container_width=True
+        )
+    with col_dica_menu:
+        st.caption(
+            "💡 *No celular, abra o menu lateral (`>` no canto superior esquerdo) para configurar o jogo ou usar Seeds.*"
+        )
+
     # Resolve qual módulo foi escolhido e delega o controle da interface para a função run() dele
     nome_selecionado = st.session_state.jogo_atual
     modulo_selecionado = JOGOS[nome_selecionado]["modulo"]
-
     modulo_selecionado.run()

@@ -4,11 +4,10 @@ import random
 import base64
 import json
 
+
 # ==========================================
 # FUNÇÕES DE SEED E GERADOR
 # ==========================================
-
-
 def gerar_seed_codificada(config: dict) -> str:
     """Empacota as configurações e a semente aleatória em uma string curta Base64."""
     # Remove espaços do JSON para encurtar a string gerada
@@ -33,15 +32,14 @@ def gerar_tabuleiro_valido(
     tamanho: int, passos_embaralhamento: int, rng: random.Random
 ) -> list[list[int]]:
     """
-    Gera um tabuleiro garantidamente solucionável partindo da solução e
-    fazendo N movimentos aleatórios inversos.
+    Gera um tabuleiro garantidamente solucionável partindo da solução
+    e fazendo N movimentos aleatórios inversos.
     """
     # Para garantir matematicamente que o puzzle tem solução, partimos do estado
     # já resolvido (1 até N^2-1, terminando em 0) e o embaralhamos.
     board = [[r * tamanho + c + 1 for c in range(tamanho)] for r in range(tamanho)]
     board[-1][-1] = 0
     empty_r, empty_c = tamanho - 1, tamanho - 1
-
     last_move = None
 
     for _ in range(passos_embaralhamento):
@@ -76,41 +74,44 @@ def gerar_tabuleiro_valido(
 # ==========================================
 # INTERFACE INTERATIVA HTML/JS
 # ==========================================
-
-
 def renderizar_sliding_puzzle(
     board_inicial: list, cfg: dict, seed_atual: str, run_id: int
 ):
     """
     Renderiza o quebra-cabeça deslizante com animações suaves via CSS translate,
-    cronômetro, contador de movimentos e suporte a teclado.
+    cronômetro, contador de movimentos e suporte a teclado e gestos (swipe).
     """
     tamanho = cfg["n"]
-
     # A chave vincula o estado do JS à seed e à rodada para limpar o cache quando o jogo reseta
     storage_key = f"sliding_{seed_atual}_{run_id}"
 
     auxilios = cfg.get("h", [])
     hl_corretos = "Destacar peças na posição correta" in auxilios
 
-    # Ajuste responsivo básico para grades maiores
+    # Ajuste responsivo básico para grades maiores (define o limite máximo em telas grandes,
+    # mas usa 100% da largura disponível em telas de celular)
     board_px = 420
     if tamanho >= 6:
         board_px = 500
-
     tile_size = board_px // tamanho
-    font_size = tile_size * 0.4
+    font_size = max(12, int(tile_size * 0.4))
 
     # Toda a lógica de jogo (movimentos, timer, vitórias) é enviada ao client-side.
     # Isso impede que o Streamlit recarregue o backend a cada peça movida, garantindo fluidez.
     html_puzzle = f"""
     <style>
-        * {{ box-sizing: border-box; user-select: none; }}
+        * {{
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }}
         body {{ margin: 0; padding: 4px; font-family: sans-serif; background: transparent; color: #fafafa; }}
         
         .top-bar {{
             display: flex; gap: 14px; justify-content: space-between; align-items: center;
             background: #1a1c24; border: 1px solid #333645; border-radius: 10px; padding: 12px 18px; margin-bottom: 24px;
+            max-width: {board_px}px; margin-left: auto; margin-right: auto;
         }}
         .stat-box {{ display: flex; flex-direction: column; gap: 2px; }}
         .stat-label {{ font-size: 12px; color: #a0a4b8; font-weight: 600; text-transform: uppercase; }}
@@ -118,30 +119,34 @@ def renderizar_sliding_puzzle(
         .timer-val {{ color: #ff4b4b; }}
         .timer-val.done {{ color: #00e676; }}
         
-        .main-layout {{ display: flex; flex-direction: column; align-items: center; gap: 16px; }}
+        .main-layout {{ display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }}
         
         .board-wrapper {{
             position: relative;
-            width: {board_px}px;
-            height: {board_px}px;
+            width: 100%;
+            max-width: {board_px}px;
+            aspect-ratio: 1 / 1;
             background: #111318;
             border: 4px solid #333645;
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             overflow: hidden;
+            touch-action: none;
         }}
         
         .tile {{
             position: absolute;
-            width: {tile_size}px;
-            height: {tile_size}px;
+            top: 0;
+            left: 0;
+            width: calc(100% / {tamanho});
+            height: calc(100% / {tamanho});
             background: #2b4c7e;
             border: 2px solid #111318;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: {font_size}px;
+            font-size: clamp(11px, calc(65vw / {tamanho}), {font_size}px);
             font-weight: bold;
             color: #ffffff;
             cursor: pointer;
@@ -163,19 +168,25 @@ def renderizar_sliding_puzzle(
         .banner-msg.win {{ display: block; background: #14452f; border: 1px solid #00e676; color: #b9f6ca; }}
         
         .kb-hint {{ font-size: 11px; color: #7c829c; text-align: center; margin-top: 8px; }}
+
+        @media (max-width: 480px) {{
+            .stat-value {{ font-size: 17px; }}
+            .stat-label {{ font-size: 10px; }}
+            .top-bar {{ padding: 8px 12px; margin-bottom: 14px; gap: 8px; }}
+        }}
     </style>
 
     <div class="top-bar">
         <div class="stat-box"><span class="stat-label">⏱️ Cronômetro</span><span class="stat-value timer-val" id="timerDisplay">00:00.0</span></div>
-        <div class="stat-box"><span class="stat-label">🔄 Movimentos</span><span class="stat-value" id="movesDisplay">0</span></div>
-        <div class="stat-box"><span class="stat-label">🎯 Peças Corretas</span><span class="stat-value" id="correctDisplay">0</span></div>
+        <div class="stat-box"><span class="stat-label">👣 Movimentos</span><span class="stat-value" id="movesDisplay">0</span></div>
+        <div class="stat-box"><span class="stat-label">✅ Peças Corretas</span><span class="stat-value" id="correctDisplay">0</span></div>
     </div>
 
     <div class="main-layout">
         <div id="statusBanner" class="banner-msg"></div>
         <div class="board-wrapper" id="board"></div>
         <div class="kb-hint">
-            💡 <b>Dica:</b> Você pode clicar na peça ou usar as <b>Setas do Teclado</b> para deslizar.
+            💡 <b>Dica:</b> Você pode tocar na peça, <b>arrastar o dedo (swipe)</b> ou usar as <b>Setas do Teclado</b> para deslizar.
         </div>
     </div>
 
@@ -298,10 +309,10 @@ def renderizar_sliding_puzzle(
             let corretasCount = 0;
             const targetTotal = (SIZE * SIZE) - 1;
 
-            // Anima posições e avalia peças no lugar certo
+            // Anima posições (em porcentagem para responsividade em qualquer tela) e avalia peças no lugar certo
             for (let val in tilesDOM) {{
                 const t = tilesDOM[val];
-                t.el.style.transform = `translate(${{t.c * TILE_SIZE}}px, ${{t.r * TILE_SIZE}}px)`;
+                t.el.style.transform = `translate(${{t.c * 100}}%, ${{t.r * 100}}%)`;
                 
                 const valInt = parseInt(val);
                 const correctR = Math.floor((valInt - 1) / SIZE);
@@ -350,12 +361,46 @@ def renderizar_sliding_puzzle(
             }}
         }});
 
+        // Suporte a gestos de deslizar o dedo (Swipe) para telas touch / celulares
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const boardEl = document.getElementById('board');
+
+        boardEl.addEventListener('touchstart', (e) => {{
+            if (e.touches.length === 1) {{
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }}
+        }}, {{ passive: true }});
+
+        boardEl.addEventListener('touchend', (e) => {{
+            if (state.gameOver || e.changedTouches.length !== 1) return;
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            const dy = e.changedTouches[0].clientY - touchStartY;
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+
+            // Considera swipe válido se o deslocamento passar de 24px
+            if (Math.max(absDx, absDy) > 24) {{
+                let targetR = emptyPos.r;
+                let targetC = emptyPos.c;
+                if (absDx > absDy) {{
+                    targetC += (dx > 0) ? -1 : 1;
+                }} else {{
+                    targetR += (dy > 0) ? -1 : 1;
+                }}
+                if (targetR >= 0 && targetR < SIZE && targetC >= 0 && targetC < SIZE) {{
+                    const valTarget = state.board[targetR][targetC];
+                    if (valTarget !== 0) tryMove(valTarget);
+                }}
+            }}
+        }}, {{ passive: true }});
+
         carregarEstado();
         atualizarCronometro();
         renderUI();
     </script>
     """
-
     # Altura fixa ajustável para evitar barras de rolagem desnecessárias
     components.html(html_puzzle, height=620 if tamanho <= 5 else 680, scrolling=False)
 
@@ -363,8 +408,6 @@ def renderizar_sliding_puzzle(
 # ==========================================
 # FUNÇÃO PRINCIPAL DO JOGO
 # ==========================================
-
-
 def run():
     # Protege variáveis do estado global contra os recarregamentos (re-runs) nativos do Streamlit
     if "sliding_ativo" not in st.session_state:
@@ -391,7 +434,7 @@ def run():
     multiplicador_passos = {"Fácil": 10, "Médio": 30, "Difícil": 80, "Insano": 200}
     passos = tamanho * multiplicador_passos[dificuldade]
 
-    st.sidebar.subheader("💡 Auxílios Visuais")
+    st.sidebar.subheader("🛠️ Auxílios Visuais")
     auxilios_selecionados = st.sidebar.multiselect(
         "Escolha quais auxílios ativar:",
         ["Destacar peças na posição correta"],
@@ -407,17 +450,15 @@ def run():
 
     col_btn1, col_btn2 = st.sidebar.columns(2)
     iniciar_novo = col_btn1.button(
-        "🎲 Novo Jogo", use_container_width=True, type="primary"
+        "🔄 Novo Jogo", use_container_width=True, type="primary"
     )
     carregar_seed_btn = col_btn2.button("📥 Carregar Seed", use_container_width=True)
 
     def iniciar_partida(usar_seed_carregada=False, manter_config_atual=False):
         """Gerencia as configurações da partida instanciando novas seeds ou resgatando configs salvas."""
-
         # Reaproveita a mesma seed caso seja solicitado
         if manter_config_atual and st.session_state.sliding_config:
             cfg = st.session_state.sliding_config
-
         elif usar_seed_carregada and seed_input.strip():
             dados_seed = decodificar_seed(seed_input.strip())
             # Valida integridade básica da seed
@@ -444,12 +485,10 @@ def run():
             }
 
         rng = random.Random(str(cfg["s"]))
-
         st.session_state.sliding_config = cfg
         st.session_state.sliding_board = gerar_tabuleiro_valido(cfg["n"], cfg["p"], rng)
         st.session_state.sliding_seed_atual = gerar_seed_codificada(cfg)
         st.session_state.sliding_ativo = True
-
         # Incrementa o run_id forçando os componentes HTML persistentes a resetarem
         st.session_state.sliding_run_id += 1
 

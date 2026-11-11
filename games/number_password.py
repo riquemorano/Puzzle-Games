@@ -6,11 +6,10 @@ import base64
 import json
 from collections import Counter
 
+
 # ==========================================
 # FUNÇÕES DE SEED E LÓGICA DO JOGO
 # ==========================================
-
-
 def gerar_seed_codificada(config: dict) -> str:
     """Empacota as configurações e a semente aleatória em uma string curta Base64."""
     # Remove espaços do JSON para encurtar a string final gerada
@@ -34,14 +33,12 @@ def decodificar_seed(seed_str: str) -> dict | None:
 def gerar_senha(qtd_numeros: int, permitir_repeticao: bool, rng: random.Random) -> str:
     """Gera a combinação secreta do cadeado."""
     digitos = [str(d) for d in range(10)]
-
-    # Se pedir mais de 10 números sem repetição, é matematicamente impossível com base 10.
+    # Se pedir mais de 10 números sem repetição é matematicamente impossível com base 10.
     # A verificação abaixo garante que sample() só rode quando for seguro.
     if not permitir_repeticao and qtd_numeros <= 10:
         escolhidos = rng.sample(digitos, qtd_numeros)
     else:
         escolhidos = [rng.choice(digitos) for _ in range(qtd_numeros)]
-
     return "".join(escolhidos)
 
 
@@ -81,7 +78,7 @@ def calcular_dicas(senha: str, palpite: str, dicas_ativas: list) -> str:
         elif exatos > 1:
             partes_dica.append(f"🟢 {exatos} certos no lugar certo")
         elif "Mostrar zeros explicitamente" in dicas_ativas:
-            partes_dica.append("🟢 0 no lugar certo")
+            partes_dica.append("⚪ 0 no lugar certo")
 
     # 3. Avaliação de certos no lugar errado
     if "Certos no lugar errado" in dicas_ativas:
@@ -95,13 +92,12 @@ def calcular_dicas(senha: str, palpite: str, dicas_ativas: list) -> str:
             else:
                 partes_dica.append(f"🟡 {deslocados} certos no lugar errado")
         elif "Mostrar zeros explicitamente" in dicas_ativas:
-            partes_dica.append("🟡 0 no lugar errado")
+            partes_dica.append("⚪ 0 no lugar errado")
 
     # 4. Dica matemática (Soma)
     if "Soma dos dígitos (Maior/Menor)" in dicas_ativas:
         soma_s = sum(int(c) for c in senha)
         soma_p = sum(int(c) for c in palpite)
-
         if soma_p < soma_s:
             partes_dica.append("⬆️ Soma da senha é MAIOR")
         elif soma_p > soma_s:
@@ -133,7 +129,6 @@ def gerar_pistas_iniciais(
     while len(pistas) < qtd_pistas and tentativas_geracao < 100:
         tentativas_geracao += 1
         palpite_falso = gerar_senha(qtd_numeros, permitir_repeticao, rng)
-
         if palpite_falso not in usados:
             usados.add(palpite_falso)
             texto_dica = calcular_dicas(senha, palpite_falso, dicas_ativas)
@@ -144,6 +139,18 @@ def gerar_pistas_iniciais(
 
 def renderizar_cronometro(start_time: float, running: bool, elapsed_final: float = 0.0):
     """Renderiza um cronômetro fluido em HTML/JS sem travar o ciclo do Streamlit."""
+    # Configura inputmode="numeric" no campo de palpite do Streamlit para abrir o teclado numérico no celular
+    script_teclado_numerico = """
+        try {
+            const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+            inputs.forEach(inp => {
+                if (inp.maxLength > 0 && inp.maxLength <= 100) {
+                    inp.setAttribute('inputmode', 'numeric');
+                    inp.setAttribute('pattern', '[0-9]*');
+                }
+            });
+        } catch (e) {}
+    """
     # Como o Streamlit é server-side, um loop de tempo travaria a aplicação.
     # Delegamos a atualização em tempo real para o frontend usando JS.
     if running:
@@ -154,6 +161,7 @@ def renderizar_cronometro(start_time: float, running: bool, elapsed_final: float
             ⏱️ <span id="timer">00:00.0</span>
         </div>
         <script>
+            {script_teclado_numerico}
             const startTime = {start_time} * 1000;
             function updateTimer() {{
                 const now = Date.now();
@@ -189,8 +197,15 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
     """
     # A chave é única por seed para que mudar de jogo limpe o cache do jogador naturalmente
     storage_key = f"matriz_{seed_atual}"
+
     html_matriz = f"""
     <style>
+        * {{
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }}
         body {{
             margin: 0;
             padding: 8px;
@@ -210,19 +225,21 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
             margin-bottom: 8px;
             font-weight: 600;
             display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
             justify-content: space-between;
             align-items: center;
         }}
         .global-row {{
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
             gap: 6px;
-            flex-wrap: wrap;
             margin-bottom: 14px;
             padding-bottom: 12px;
             border-bottom: 1px solid #2d303e;
         }}
         .btn-global {{
-            width: 36px;
+            width: 100%;
             height: 36px;
             border-radius: 6px;
             border: 2px solid #4a4e69;
@@ -232,6 +249,7 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
             font-size: 16px;
             cursor: pointer;
             transition: 0.15s;
+            touch-action: manipulation;
         }}
         .btn-global.eliminado {{
             background: #4a151b;
@@ -258,9 +276,11 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
             gap: 8px;
             overflow-x: auto;
             padding-bottom: 8px;
+            -webkit-overflow-scrolling: touch;
         }}
         .col-posicao {{
             min-width: 52px;
+            flex: 1;
             background: #222430;
             border: 1px solid #333645;
             border-radius: 8px;
@@ -277,7 +297,8 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
             margin-bottom: 4px;
         }}
         .cell-btn {{
-            width: 38px;
+            width: 100%;
+            max-width: 42px;
             height: 28px;
             border-radius: 4px;
             border: 1px solid #3d4052;
@@ -288,6 +309,7 @@ def renderizar_matriz_auxiliar(qtd_numeros: int, seed_atual: str):
             font-weight: bold;
             cursor: pointer;
             transition: 0.1s;
+            touch-action: manipulation;
         }}
         .cell-btn:hover {{
             border-color: #7c829c;
@@ -473,6 +495,23 @@ def formatar_caixas_digitos(sequencia: str) -> str:
     return caixas
 
 
+def formatar_card_pista(sequencia: str, dica_texto: str, prefixo: str = "") -> str:
+    """Agrupa as caixas de dígitos e a dica num único card Flexbox para não desconfigurar no celular."""
+    caixas = formatar_caixas_digitos(sequencia)
+    prefixo_html = (
+        f'<span style="font-weight:bold; color:#a0a4b8; margin-right:6px;">{prefixo}</span>'
+        if prefixo
+        else ""
+    )
+    return (
+        f'<div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; '
+        f'gap:8px; background:#1a1c24; border:1px solid #2d303e; border-radius:8px; padding:8px 12px; margin-bottom:8px;">'
+        f'<div style="display:flex; align-items:center; flex-wrap:wrap;">{prefixo_html}{caixas}</div>'
+        f'<div style="font-size:15px; color:#e0e0e0; flex:1; min-width:180px;">{dica_texto}</div>'
+        f"</div>"
+    )
+
+
 # ==========================================
 # FUNÇÃO PRINCIPAL DO JOGO (CHAMADA PELO APP.PY)
 # ==========================================
@@ -543,7 +582,7 @@ def run():
             "ℹ️ Acima de 10 dígitos, a repetição de números é ativada automaticamente."
         )
 
-    st.sidebar.subheader("💡 Informações (Dicas) Exibidas")
+    st.sidebar.subheader("🛠️ Informações (Dicas) Exibidas")
     opcoes_dicas_disponiveis = [
         "Certos no lugar certo",
         "Certos no lugar errado",
@@ -570,7 +609,7 @@ def run():
 
     col_btn1, col_btn2 = st.sidebar.columns(2)
     iniciar_novo = col_btn1.button(
-        "🎲 Novo Jogo", use_container_width=True, type="primary"
+        "🔄 Novo Jogo", use_container_width=True, type="primary"
     )
     carregar_seed_btn = col_btn2.button("📥 Carregar Seed", use_container_width=True)
 
@@ -579,7 +618,6 @@ def run():
         # Se for um replay, aproveita o que já está na memória
         if manter_config_atual and st.session_state.config_atual:
             cfg = st.session_state.config_atual
-
         elif usar_seed_carregada and seed_input.strip():
             dados_seed = decodificar_seed(seed_input.strip())
             if dados_seed:
@@ -644,11 +682,10 @@ def run():
     # ==========================================
     cfg = st.session_state.config_atual
 
-    st.title("🔐 Desafio do Cadeado")
+    st.title("🔒 Desafio do Cadeado")
 
     # Cabeçalho de Status: Cronômetro, Tentativas e Seed
     col_top1, col_top2, col_top3 = st.columns([1.2, 1.2, 2])
-
     with col_top1:
         st.markdown("**Cronômetro**")
         renderizar_cronometro(
@@ -656,14 +693,12 @@ def run():
             running=not st.session_state.fim_de_jogo,
             elapsed_final=st.session_state.tempo_final,
         )
-
     with col_top2:
         restantes = cfg["t"] - len(st.session_state.tentativas)
         st.metric("Tentativas Restantes", f"{restantes} / {cfg['t']}")
         st.caption(
             f"Tamanho da senha: **{cfg['n']} dígitos** | Dificuldade: **{cfg['d']}**"
         )
-
     with col_top3:
         st.markdown(
             "**🌱 Seed desta Partida** *(copie para rejogar ou desafiar alguém)*:"
@@ -679,15 +714,11 @@ def run():
         # Exibição das Pistas Iniciais do Cadeado
         if st.session_state.pistas_iniciais:
             st.subheader("🔍 Pistas Iniciais do Cadeado")
-            for comb, dica_texto in st.session_state.pistas_iniciais:
-                c1, c2 = st.columns([1.8, 2.2])
-                with c1:
-                    st.markdown(formatar_caixas_digitos(comb), unsafe_allow_html=True)
-                with c2:
-                    st.markdown(
-                        f"<div style='padding-top:8px; font-size:15px;'>{dica_texto}</div>",
-                        unsafe_allow_html=True,
-                    )
+            html_pistas = "".join(
+                formatar_card_pista(comb, dica_texto)
+                for comb, dica_texto in st.session_state.pistas_iniciais
+            )
+            st.markdown(html_pistas, unsafe_allow_html=True)
             st.markdown("---")
 
         # Formulário de Palpite do Jogador
@@ -751,36 +782,31 @@ def run():
                     f"- **Tempo decorrido:** {st.session_state.tempo_final:.1f} segundos"
                 )
 
-            if st.button("🔄 Rejogar esta mesma Seed", use_container_width=True):
+            if st.button("🔁 Rejogar esta mesma Seed", use_container_width=True):
                 iniciar_partida(manter_config_atual=True)
                 st.rerun()
 
         # Histórico de Tentativas do Jogador (Exibido de forma invertida, mais recente no topo)
         if st.session_state.tentativas:
-            st.subheader("📋 Suas Tentativas")
-            for idx, (palpite_hist, dica_hist) in enumerate(
-                reversed(st.session_state.tentativas), 1
-            ):
-                num_tentativa = len(st.session_state.tentativas) - idx + 1
-                c1, c2 = st.columns([1.8, 2.2])
-                with c1:
-                    st.markdown(
-                        f"**#{num_tentativa}** &nbsp; "
-                        + formatar_caixas_digitos(palpite_hist),
-                        unsafe_allow_html=True,
-                    )
-                with c2:
-                    st.markdown(
-                        f"<div style='padding-top:8px; font-size:15px;'>{dica_hist}</div>",
-                        unsafe_allow_html=True,
-                    )
+            st.subheader("📝 Suas Tentativas")
+            html_tentativas = "".join(
+                formatar_card_pista(
+                    palpite_hist,
+                    dica_hist,
+                    prefixo=f"#{len(st.session_state.tentativas) - idx + 1}",
+                )
+                for idx, (palpite_hist, dica_hist) in enumerate(
+                    reversed(st.session_state.tentativas), 1
+                )
+            )
+            st.markdown(html_tentativas, unsafe_allow_html=True)
 
     with col_matriz:
-        st.subheader("🧮 Matriz Auxiliar de Dedução")
+        st.subheader("🧠 Matriz Auxiliar de Dedução")
         renderizar_matriz_auxiliar(cfg["n"], st.session_state.seed_atual)
 
 
 # Permite rodar o arquivo diretamente para testes isolados, se desejar
 if __name__ == "__main__":
-    st.set_page_config(page_title="Desafio do Cadeado", page_icon="🔐", layout="wide")
+    st.set_page_config(page_title="Desafio do Cadeado", page_icon="🔒", layout="wide")
     run()

@@ -6,11 +6,10 @@ import json
 import time
 from collections import deque
 
+
 # ==========================================
 # FUNÇÕES DE SEED E GERADOR DE SUDOKU / JIGSAW
 # ==========================================
-
-
 def gerar_seed_codificada(config: dict) -> str:
     """Empacota as configurações e a semente aleatória em uma string curta Base64."""
     # Omitimos os espaços no JSON para encurtar a string final gerada
@@ -49,10 +48,8 @@ def regiao_conectada(regioes: list[list[int]], reg_id: int, tamanho: int) -> boo
     ]
     if not celulas:
         return True
-
     visitados = {celulas[0]}
     fila = deque([celulas[0]])
-
     while fila:
         r, c = fila.popleft()
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -60,7 +57,6 @@ def regiao_conectada(regioes: list[list[int]], reg_id: int, tamanho: int) -> boo
             if (nr, nc) in celulas and (nr, nc) not in visitados:
                 visitados.add((nr, nc))
                 fila.append((nr, nc))
-
     return len(visitados) == len(celulas)
 
 
@@ -90,19 +86,15 @@ def gerar_mapa_regioes(
     for _ in range(tentativas):
         r1 = rng.randrange(tamanho)
         c1 = rng.randrange(tamanho)
-
         vizinhos = [
             (r1 + dr, c1 + dc)
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]
             if 0 <= r1 + dr < tamanho and 0 <= c1 + dc < tamanho
         ]
-
         if not vizinhos:
             continue
-
         r2, c2 = rng.choice(vizinhos)
         reg1, reg2 = regioes[r1][c1], regioes[r2][c2]
-
         if reg1 == reg2:
             continue
 
@@ -122,12 +114,10 @@ def gerar_mapa_regioes(
                         ):
                             fronteiras.append((rr, cc))
                             break
-
         if not fronteiras:
             continue
 
         r3, c3 = rng.choice(fronteiras)
-
         # Faz a troca em caráter de teste
         regioes[r1][c1] = reg2
         regioes[r3][c3] = reg1
@@ -151,13 +141,11 @@ def resolver_jigsaw_mrv(
 ) -> list[list[int]] | None:
     """Resolve qualquer grade irregular usando Backtracking com heurística MRV e Bitmask."""
     tabuleiro = [[0] * tamanho for _ in range(tamanho)]
-
     # Uso de operações bit-a-bit para rastrear os números usados de forma super rápida (O(1))
     usados_linha = [0] * tamanho
     usados_col = [0] * tamanho
     usados_reg = [0] * tamanho
     todos_bits = (1 << (tamanho + 1)) - 2
-
     inicio = time.time()
 
     def backtrack(preenchidas: int) -> bool:
@@ -177,16 +165,13 @@ def resolver_jigsaw_mrv(
                         usados_linha[r] | usados_col[c] | usados_reg[reg]
                     )
                     qtd = livres.bit_count()
-
                     if qtd == 0:
                         return False
-
                     if qtd < menor_opcoes:
                         menor_opcoes = qtd
                         melhor_r, melhor_c, melhor_mask = r, c, livres
                         if qtd == 1:
                             break
-
             if menor_opcoes == 1:
                 break
 
@@ -232,7 +217,6 @@ def gerar_solucao_padrao(br: int, bc: int, rng: random.Random) -> list[list[int]
     linhas = [g * br + r for g in shuffle(range(bc)) for r in shuffle(range(br))]
     colunas = [g * bc + c for g in shuffle(range(br)) for c in shuffle(range(bc))]
     numeros = shuffle(range(1, tamanho + 1))
-
     return [[numeros[pattern(r, c)] for c in colunas] for r in linhas]
 
 
@@ -265,20 +249,15 @@ def criar_puzzle_sudoku(
     tamanho = len(solucao)
     puzzle = [linha[:] for linha in solucao]
     todas_posicoes = [(r, c) for r in range(tamanho) for c in range(tamanho)]
-
     posicoes_remover = rng.sample(todas_posicoes, min(vazios, len(todas_posicoes) - 1))
-
     for r, c in posicoes_remover:
         puzzle[r][c] = 0
-
     return puzzle
 
 
 # ==========================================
 # INTERFACE INTERATIVA HTML/JS DO SUDOKU
 # ==========================================
-
-
 def renderizar_tabuleiro_sudoku(
     puzzle: list, solucao: list, regioes: list, cfg: dict, seed_atual: str, run_id: int
 ):
@@ -289,7 +268,6 @@ def renderizar_tabuleiro_sudoku(
     br = cfg.get("br", 3)
     bc = cfg.get("bc", 3)
     jigsaw = cfg.get("j", False)
-
     # Vincula o cache local à rodada atual, permitindo reset limpo ao gerar novos puzzles
     storage_key = f"sudoku_{seed_atual}_{run_id}"
 
@@ -308,6 +286,8 @@ def renderizar_tabuleiro_sudoku(
         cell_size, font_size, note_size = 22, 9, 6
 
     numpad_cols = 5 if tamanho > 16 else (4 if tamanho >= 10 else 3)
+    # No mobile, distribui o teclado numérico em mais colunas para ocupar menos altura na tela
+    mobile_numpad_cols = min(tamanho, 5) if tamanho > 9 else min(tamanho, 9)
     note_cols = bc if (not jigsaw and bc <= 5) else int(tamanho**0.5) or 3
     note_rows = (
         br if (not jigsaw and br <= 5) else (tamanho + note_cols - 1) // note_cols
@@ -323,7 +303,17 @@ def renderizar_tabuleiro_sudoku(
     # (Vanilla JS/DOM). Isso garante fluidez e zero latência com o servidor do Streamlit.
     html_sudoku = f"""
     <style>
-        * {{ box-sizing: border-box; user-select: none; }}
+        :root {{
+            --cell-size: {cell_size}px;
+            --cell-font: {font_size}px;
+            --note-font: {note_size}px;
+        }}
+        * {{
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }}
         body {{ margin: 0; padding: 4px; font-family: sans-serif; background: transparent; color: #fafafa; }}
         .top-bar {{
             display: flex; gap: 14px; justify-content: space-between; align-items: center;
@@ -339,21 +329,23 @@ def renderizar_tabuleiro_sudoku(
         
         .board-wrapper {{
             background: #111318; padding: 10px; border-radius: 12px; border: 2px solid #4a4e69;
-            max-width: 100%; max-height: 75vh; overflow: auto;
+            max-width: 100%; max-height: 75vh; overflow: auto; -webkit-overflow-scrolling: touch;
         }}
         .sudoku-grid {{
             display: grid;
-            grid-template-columns: repeat({tamanho}, {cell_size}px);
+            grid-template-columns: repeat({tamanho}, var(--cell-size));
             border: 3px solid #b0b8d4;
             background: #2b2e3d;
             width: max-content;
+            margin: 0 auto;
         }}
         .cell {{
-            width: {cell_size}px; height: {cell_size}px;
+            width: var(--cell-size); height: var(--cell-size);
             background: #1e202b; border: 1px solid rgba(255, 255, 255, 0.12);
             display: flex; align-items: center; justify-content: center;
-            font-family: monospace; font-size: {font_size}px; font-weight: bold;
+            font-family: monospace; font-size: var(--cell-font); font-weight: bold;
             color: #64b5f6; cursor: pointer; position: relative;
+            touch-action: manipulation;
         }}
         .cell.fixed {{ color: #ffffff; }}
         .cell.selected {{ background: #2b4c7e !important; outline: 2px solid #64b5f6; z-index: 2; }}
@@ -366,11 +358,11 @@ def renderizar_tabuleiro_sudoku(
             width: 100%; height: 100%; padding: 1px; pointer-events: none;
         }}
         .note-val {{
-            font-size: {note_size}px; color: #c5cae9;
+            font-size: var(--note-font); color: #c5cae9;
             display: flex; align-items: center; justify-content: center; line-height: 1;
         }}
         .notes-compact {{
-            font-size: {note_size}px; color: #c5cae9; line-height: 1;
+            font-size: var(--note-font); color: #c5cae9; line-height: 1;
             text-align: center; overflow: hidden; word-break: break-all; padding: 1px; pointer-events: none;
         }}
         
@@ -384,6 +376,7 @@ def renderizar_tabuleiro_sudoku(
         .btn-action {{
             background: #262730; border: 1px solid #4a4e69; color: #e0e0e0; border-radius: 8px;
             padding: 10px 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.15s;
+            touch-action: manipulation;
         }}
         .btn-action:hover {{ border-color: #8c92ac; background: #323546; }}
         .btn-action.active-mode {{ background: #14452f; border-color: #00e676; color: #69f0ae; }}
@@ -396,6 +389,7 @@ def renderizar_tabuleiro_sudoku(
             height: 44px; background: #2b2e3d; border: 1px solid #42465a; border-radius: 8px;
             color: #ffffff; font-family: monospace; font-size: 16px; font-weight: bold;
             cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            touch-action: manipulation;
         }}
         .btn-num:hover {{ background: #3b3f54; border-color: #64b5f6; }}
         .btn-num.completed {{ opacity: 0.2; pointer-events: none; }}
@@ -406,6 +400,24 @@ def renderizar_tabuleiro_sudoku(
         .banner-msg.lose {{ display: block; background: #4a151b; border: 1px solid #ff4b4b; color: #ffcdd2; }}
         
         .kb-hint {{ font-size: 11px; color: #7c829c; text-align: center; line-height: 1.4; }}
+
+        /* Media query para compactar o painel e o teclado numérico em telas de celular */
+        @media (max-width: 640px) {{
+            .top-bar {{ padding: 8px 10px; margin-bottom: 10px; gap: 8px; }}
+            .stat-value {{ font-size: 16px; }}
+            .stat-label {{ font-size: 10px; }}
+            .main-layout {{ gap: 10px; }}
+            .board-wrapper {{ padding: 4px; width: 100%; display: flex; justify-content: center; }}
+            .controls-panel {{ width: 100%; max-width: 100%; padding: 10px; gap: 10px; }}
+            .action-row {{ grid-template-columns: repeat(4, 1fr); gap: 6px; }}
+            .btn-action {{ font-size: 11px; padding: 8px 4px; }}
+            .numpad-grid {{
+                grid-template-columns: repeat({mobile_numpad_cols}, 1fr);
+                gap: 4px;
+                max-height: 160px;
+            }}
+            .btn-num {{ height: 42px; font-size: 15px; }}
+        }}
     </style>
 
     <div class="top-bar">
@@ -424,20 +436,23 @@ def renderizar_tabuleiro_sudoku(
             <div class="panel-title"><span>🛠️ Ferramentas</span><span style="font-size:11px; font-weight:normal;">[N] Notas</span></div>
             <div class="action-row">
                 <button class="btn-action" id="btnNoteMode" onclick="toggleNoteMode()">✏️ Notas: OFF</button>
-                <button class="btn-action" onclick="apagarCelula()">⌫ Apagar</button>
+                <button class="btn-action" onclick="apagarCelula()">🗑️ Apagar</button>
                 <button class="btn-action" id="btnHint" onclick="usarDica()">💡 Usar Dica</button>
                 <button class="btn-action" onclick="reiniciarTabuleiro()">🔄 Limpar Tudo</button>
             </div>
             <div class="panel-title"><span>🔢 Teclado Numérico (1 a {tamanho})</span></div>
             <div class="numpad-grid" id="numpadGrid"></div>
             <div class="kb-hint">
-                💡 Clique na célula e use os botões acima, digite <b>1-9</b> ou letras <b>A-Z</b> (A=10, B=11...).
+                ⌨️ Clique na célula e use os botões acima, digite <b>1-9</b> ou letras <b>A-Z</b> (A=10, B=11...).
             </div>
         </div>
     </div>
 
     <script>
         const SIZE = {tamanho};
+        const BASE_CELL = {cell_size};
+        const BASE_FONT = {font_size};
+        const BASE_NOTE = {note_size};
         const INITIAL = {json.dumps(puzzle)};
         const SOLUTION = {json.dumps(solucao)};
         const REGIONS = {json.dumps(regioes)};
@@ -445,7 +460,6 @@ def renderizar_tabuleiro_sudoku(
         const MAX_MISTAKES = {cfg["m"]};
         const MAX_HINTS = {cfg["dicas_max"]};
         const STORAGE_KEY = "{storage_key}";
-
         const HL_IGUAIS = {str(hl_iguais).lower()};
         const HL_CONFLITOS = {str(hl_conflitos).lower()};
         const VERIF_IMEDIATA = {str(verif_imediata).lower()};
@@ -457,6 +471,21 @@ def renderizar_tabuleiro_sudoku(
             "#2d1e3e", "#1c3144", "#283618", "#3d2622", "#222738",
             "#1f363d", "#382232"
         ];
+
+        // Calcula dinamicamente o tamanho da célula em telas estreitas para evitar barra de rolagem horizontal
+        function ajustarDimensoesMobile() {{
+            const larguraDisponivel = window.innerWidth - 26;
+            const calculado = Math.floor(larguraDisponivel / SIZE);
+            const novoCell = Math.max(28, Math.min(BASE_CELL, calculado));
+            const novoFont = Math.max(12, Math.floor(novoCell * 0.44));
+            const novoNote = Math.max(6, Math.floor(novoCell * 0.21));
+
+            document.documentElement.style.setProperty('--cell-size', novoCell + 'px');
+            document.documentElement.style.setProperty('--cell-font', novoFont + 'px');
+            document.documentElement.style.setProperty('--note-font', novoNote + 'px');
+        }}
+        window.addEventListener('resize', ajustarDimensoesMobile);
+        ajustarDimensoesMobile();
 
         // Estado gerenciado estritamente no frontend
         let state = {{
@@ -604,7 +633,6 @@ def renderizar_tabuleiro_sudoku(
                 }}
             }}
             document.getElementById('progressDisplay').innerText = Math.floor((preenchidas / (SIZE*SIZE)) * 100) + '%';
-
             document.getElementById('btnNoteMode').innerText = state.noteMode ? '✏️ Notas: ON' : '✏️ Notas: OFF';
             document.getElementById('btnNoteMode').className = 'btn-action' + (state.noteMode ? ' active-mode' : '');
             
@@ -698,7 +726,6 @@ def renderizar_tabuleiro_sudoku(
         window.addEventListener('keydown', (e) => {{
             const [r, c] = state.selected;
             let valPretendido = -1;
-
             if (e.key >= '1' && e.key <= '9') {{
                 valPretendido = parseInt(e.key);
             }} else if (SIZE >= 10 && e.key.length === 1) {{
@@ -730,8 +757,6 @@ def renderizar_tabuleiro_sudoku(
 # ==========================================
 # FUNÇÃO PRINCIPAL DO JOGO
 # ==========================================
-
-
 def run():
     # Inicializa ou migra automaticamente as sessões no cache global para persistência de interface
     if (
@@ -760,7 +785,6 @@ def run():
     )
 
     modo_jigsaw = False
-
     if modo_formato == "📐 Clássico (Padrões Rápidos)":
         opcoes_tamanho = {
             "4x4 (Mini - Blocos 2x2)": (2, 2),
@@ -782,7 +806,6 @@ def run():
         modo_jigsaw = st.sidebar.checkbox(
             "Deformar blocos no estilo Jigsaw (Irregular)", value=False
         )
-
     elif modo_formato == "🧩 Jigsaw / Irregular (Inclui Primos 5x5, 7x7...)":
         modo_jigsaw = True
         st.sidebar.caption(
@@ -792,7 +815,6 @@ def run():
             "Tamanho do Tabuleiro (N x N)", min_value=4, max_value=12, value=7
         )
         br, bc = obter_dimensoes_padrao(tamanho)
-
     else:
         st.sidebar.caption(
             "O tamanho do tabuleiro será **N = Altura × Largura do Bloco** (ex: 2 e 5 gera um **10x10**; 10 e 10 gera um **100x100**)."
@@ -804,15 +826,12 @@ def run():
         bc = col_bc.number_input(
             "Largura Bloco (Bc)", min_value=1, max_value=10, value=5
         )
-
         if br * bc < 4:
             st.sidebar.warning(
                 "Escolha dimensões cujo produto seja pelo menos 4 (ex: 2x2)."
             )
             br, bc = 2, 2
-
         tamanho = br * bc
-
         if br == 1 or bc == 1:
             st.sidebar.info(
                 "💡 Como uma das dimensões do bloco é 1, o modo **Jigsaw Irregular** foi ativado automaticamente para criar regiões válidas!"
@@ -824,7 +843,7 @@ def run():
         "Regiões Jigsaw Irregulares" if modo_jigsaw else f"Blocos {br}x{bc}"
     )
     st.sidebar.info(
-        f"📐 **Grade:** {tamanho}x{tamanho} ({total_celulas} células)\n\n🧩 **Formato:** {tipo_regiao_txt}"
+        f"📏 **Grade:** {tamanho}x{tamanho} ({total_celulas} células)\n\n🧩 **Formato:** {tipo_regiao_txt}"
     )
 
     dificuldade = st.sidebar.selectbox(
@@ -863,7 +882,7 @@ def run():
         )
         max_dicas = st.sidebar.number_input("Dicas disponíveis", 0, 100, 5)
 
-    st.sidebar.subheader("💡 Auxílios Visuais e Regras")
+    st.sidebar.subheader("🛠️ Auxílios Visuais e Regras")
     auxilios_selecionados = st.sidebar.multiselect(
         "Escolha quais auxílios ativar:",
         [
@@ -889,7 +908,7 @@ def run():
 
     col_btn1, col_btn2 = st.sidebar.columns(2)
     iniciar_novo = col_btn1.button(
-        "🎲 Novo Jogo", use_container_width=True, type="primary"
+        "🔄 Novo Jogo", use_container_width=True, type="primary"
     )
     carregar_seed_btn = col_btn2.button("📥 Carregar Seed", use_container_width=True)
 
@@ -897,10 +916,8 @@ def run():
         """Gerencia reinicialização de estado validando consistência e parse de inputs/seeds."""
         if manter_config_atual and st.session_state.sudoku_config:
             cfg = st.session_state.sudoku_config
-
         elif usar_seed_carregada and seed_input.strip():
             dados_seed = decodificar_seed(seed_input.strip())
-
             if dados_seed and "n" in dados_seed and "v" in dados_seed:
                 # Fallback de compatibilidade para seeds antigas sem block width/height
                 if "br" not in dados_seed or "bc" not in dados_seed:
@@ -909,7 +926,6 @@ def run():
                     )
                 if "j" not in dados_seed:
                     dados_seed["j"] = False
-
                 cfg = dados_seed
                 st.sidebar.success("Seed completa carregada com sucesso!")
             else:
@@ -951,7 +967,6 @@ def run():
         st.session_state.sudoku_puzzle = criar_puzzle_sudoku(solucao, cfg["v"], rng)
         st.session_state.sudoku_seed_atual = gerar_seed_codificada(cfg)
         st.session_state.sudoku_ativo = True
-
         # O increment de ID força o frontend (JS) a perder as caches antigas
         st.session_state.sudoku_run_id += 1
 
@@ -973,7 +988,7 @@ def run():
 
     col_titulo, col_seed = st.columns([1.5, 2], vertical_alignment="center")
     with col_titulo:
-        st.title("🧩 Sudoku & Jigsaw Customizável")
+        st.title("🔢 Sudoku & Jigsaw Customizável")
         sub_formato = (
             "Jigsaw Irregular"
             if cfg.get("j", False)
@@ -998,5 +1013,5 @@ def run():
 
 
 if __name__ == "__main__":
-    st.set_page_config(page_title="Sudoku Customizável", page_icon="🧩", layout="wide")
+    st.set_page_config(page_title="Sudoku Customizável", page_icon="🔢", layout="wide")
     run()
